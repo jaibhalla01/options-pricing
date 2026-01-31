@@ -44,6 +44,37 @@ def extract_boundary(option_type, K, r, q, sigma, T, stock_intervals, time_inter
     return S_int[idx]
 
 
+def _interpolate_boundary(s_grid, diff, lower_idx, upper_idx, target):
+    s0, s1 = s_grid[lower_idx], s_grid[upper_idx]
+    d0, d1 = diff[lower_idx], diff[upper_idx]
+    if d1 == d0:
+        return s0
+    return s0 + (target - d0) * (s1 - s0) / (d1 - d0)
+
+
+def _boundary_from_diff(option_type, s_grid, diff, tol):
+    exercise_mask = diff <= tol
+    exercise_idx = np.where(exercise_mask)[0]
+    option = option_type.lower()
+
+    if exercise_idx.size == 0:
+        return s_grid[-1] if option == "call" else s_grid[0]
+
+    if exercise_idx.size == s_grid.size:
+        return s_grid[0] if option == "call" else s_grid[-1]
+
+    if option == "call":
+        first_exercise = exercise_idx[0]
+        lower_idx = first_exercise - 1
+        upper_idx = first_exercise
+    else:
+        last_exercise = exercise_idx[-1]
+        lower_idx = last_exercise
+        upper_idx = last_exercise + 1
+
+    return _interpolate_boundary(s_grid, diff, lower_idx, upper_idx, tol)
+
+
 def extract_boundary_curve(option_type, K, r, q, sigma, T, stock_intervals, time_intervals):
     V, s_grid = american_fd_surface(
         option_type, K, r, q, sigma, T, stock_intervals, time_intervals
@@ -52,7 +83,8 @@ def extract_boundary_curve(option_type, K, r, q, sigma, T, stock_intervals, time
     boundary = np.zeros(V.shape[1])
 
     # Payoff
-    if option_type.lower() == "call":
+    option = option_type.lower()
+    if option == "call":
         payoff = np.maximum(s_grid - K, 0.0)
     else:
         payoff = np.maximum(K - s_grid, 0.0)
@@ -62,32 +94,13 @@ def extract_boundary_curve(option_type, K, r, q, sigma, T, stock_intervals, time
     S_int = s_grid[1:-1]
     payoff_int = payoff[1:-1]
 
+    tol = max(1e-10, 1e-6 * K)
+
     for n in range(V.shape[1]):
         diff = V_int[:, n] - payoff_int
-
-        exercise_idx = np.where(diff <= 0)[0]
-        continuation_idx = np.where(diff > 0)[0]
-
-        # Case 1: continuation everywhere → no early exercise
-        if len(exercise_idx) == 0:
-            boundary[n] = S_int[-1] if option_type == "call" else S_int[0]
-            continue
-
-        # Case 2: exercise everywhere → immediate exercise
-        if len(continuation_idx) == 0:
-            boundary[n] = S_int[0] if option_type == "call" else S_int[-1]
-            continue
-
-        # Case 3: genuine free boundary
-        if option_type == "call":
-            # lowest S where continuation starts
-            boundary[n] = S_int[continuation_idx[0]]
-        else:
-            # highest S where continuation starts
-            boundary[n] = S_int[continuation_idx[-1]]
+        boundary[n] = _boundary_from_diff(option, S_int, diff, tol)
 
     return boundary
-
 
 
 
