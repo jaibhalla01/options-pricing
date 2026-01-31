@@ -44,7 +44,7 @@ src/amopt/
 ## Installation
 
 ```bash
-git clone https://github.com/jaibhalla01/american-options.git
+git clone https://github.com/jaibhalla01/options-pricing.git
 cd american-options
 pip install -e .
 
