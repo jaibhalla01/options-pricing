@@ -21,17 +21,17 @@ def _interpolate_boundary(s_grid, diff, lower_idx, upper_idx, target):
 
 
 def _boundary_from_diff(option_type, s_grid, diff, tol=1e-4):
-    option_type = option_type.lower()
+    option = option_type.lower()
 
-    if np.all(diff > 0):
-        return s_grid[-1] if option_type == "call" else s_grid[0]
+    if np.all(diff > tol):
+        return s_grid[-1] if option == "call" else s_grid[0]
 
-    if np.all(diff <= 0):
-        return s_grid[0] if option_type == "call" else s_grid[-1]
+    if np.all(diff <= tol):
+        return s_grid[0] if option == "call" else s_grid[-1]
 
-    continuation_idx = np.where(diff > 0)[0]
+    continuation_idx = np.where(diff > tol)[0]
 
-    if option_type == "call":
+    if option == "call":
         last_continuation = continuation_idx[-1]
         return _interpolate_boundary(
             s_grid,
@@ -72,55 +72,8 @@ def extract_boundary(option_type, K, r, q, sigma, T, stock_intervals, time_inter
 
     diff = V_int - payoff_int
 
-    # ---- Handle degenerate cases first ----
-    if np.all(diff > 0):
-        # Continuation everywhere → no early exercise
-        return np.nan
-
-    if np.all(diff <= 0):
-        # Immediate exercise everywhere
-        return S_int[-1] if option_type == 'put' else S_int[0]
-
-    # ---- Genuine free boundary exists ----
-    if option_type.lower() == 'call':
-        # First S where continuation starts
-        idx = np.where(diff > 0)[0][0]
-    else:
-        # Last S where continuation starts
-        idx = np.where(diff > 0)[0][-1]
-
-    return S_int[idx]
-
-
-def _interpolate_boundary(s_grid, diff, lower_idx, upper_idx, target):
-    s0, s1 = s_grid[lower_idx], s_grid[upper_idx]
-    d0, d1 = diff[lower_idx], diff[upper_idx]
-    if d1 == d0:
-        return s0
-    return s0 + (target - d0) * (s1 - s0) / (d1 - d0)
-
-
-def _boundary_from_diff(option_type, s_grid, diff, tol):
-    exercise_mask = diff <= tol
-    exercise_idx = np.where(exercise_mask)[0]
-    option = option_type.lower()
-
-    if exercise_idx.size == 0:
-        return s_grid[-1] if option == "call" else s_grid[0]
-
-    if exercise_idx.size == s_grid.size:
-        return s_grid[0] if option == "call" else s_grid[-1]
-
-    if option == "call":
-        first_exercise = exercise_idx[0]
-        lower_idx = first_exercise - 1
-        upper_idx = first_exercise
-    else:
-        last_exercise = exercise_idx[-1]
-        lower_idx = last_exercise
-        upper_idx = last_exercise + 1
-
-    return _interpolate_boundary(s_grid, diff, lower_idx, upper_idx, tol)
+    tol = max(1e-10, 1e-6 * K)
+    return _boundary_from_diff(option_type, S_int, diff, tol)
 
 
 def extract_boundary_curve(option_type, K, r, q, sigma, T, stock_intervals, time_intervals):
@@ -149,33 +102,6 @@ def extract_boundary_curve(option_type, K, r, q, sigma, T, stock_intervals, time
         boundary[n] = _boundary_from_diff(option_type, S_int, diff, tol)
 
     return boundary
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
