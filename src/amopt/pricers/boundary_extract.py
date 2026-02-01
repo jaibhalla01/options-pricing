@@ -146,7 +146,7 @@ def extract_boundary_curve(option_type, K, r, q, sigma, T, stock_intervals, time
 
     for n in range(V.shape[1]):
         diff = V_int[:, n] - payoff_int
-        boundary[n] = _boundary_from_diff(option_type, S_int, diff)
+        boundary[n] = _boundary_from_diff(option_type, S_int, diff, tol)
 
     return boundary
 
